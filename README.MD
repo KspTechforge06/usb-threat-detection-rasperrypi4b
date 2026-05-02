@@ -1,164 +1,202 @@
-Raspberry Pi USB Guard OLED Monitor
-A Raspberry Pi 4B based USB monitoring project that detects newly connected USB devices, identifies device type, scans USB storage for suspicious executable/script files, and shows the security status using LEDs, a buzzer, and an OLED display.
-This project is designed for a mini-project / security demo where:
-No USB device connected → both LEDs OFF
-Safe USB device connected → green LED ON
-Suspicious USB storage detected → red LED ON + buzzer beeps 3 times
-USB details are displayed on a 1.3-inch OLED screen
-> Important: This is not a full antivirus engine. It treats risky file extensions such as `.exe`, `.bat`, `.ps1`, `.dll`, etc. as suspicious indicators.
+# Raspberry Pi USB Guard OLED Monitor
+
+A Raspberry Pi 4B–based USB security monitor that detects newly connected USB devices, classifies them, scans USB storage for suspicious files, and reports status via LEDs, a buzzer, and a 1.3-inch OLED display.
+
+> **Disclaimer:** This is an educational demo project, not a replacement for professional antivirus or endpoint security software.
+
 ---
-Features
-Detects USB insert and remove events in real time
-Identifies common USB device types:
-Keyboard
-Mouse
-USB storage
-USB hub
-Camera
-Bluetooth / wireless device
-Composite USB device
-Scans USB storage for suspicious file extensions
-Shows live status on OLED display
-Uses green LED for safe devices
-Uses red LED for suspicious devices
-Buzzer beeps 3 times when suspicious USB is detected
-Red LED stays ON until the suspicious USB is removed
-OLED errors are handled safely so the main USB monitoring does not crash
+
+## Table of Contents
+
+1. [Features](#features)
+2. [Hardware](#hardware)
+3. [Wiring](#wiring)
+4. [Software Setup](#software-setup)
+5. [Project Structure](#project-structure)
+6. [How It Works](#how-it-works)
+7. [Running the Project](#running-the-project)
+8. [Expected Output](#expected-output)
+9. [Auto-Start on Boot](#auto-start-on-boot)
+10. [Troubleshooting](#troubleshooting)
+11. [Security Limitations & Future Improvements](#security-limitations--future-improvements)
+
 ---
-Hardware Required
-Component	Quantity
-Raspberry Pi 4B	1
-MicroSD card, 32 GB or 64 GB recommended	1
-1.3-inch I2C OLED display	1
-Red LED	1
-Green LED	1
-Buzzer / active buzzer module	1
-220Ω resistors for LEDs	2
-Jumper wires	As needed
-Breadboard	1
+
+## Features
+
+- Real-time USB insert and remove detection via `pyudev`
+- Device classification: Keyboard, Mouse, USB Storage, Hub, Camera, Bluetooth/Wireless, Composite
+- File scan on USB storage for suspicious extensions
+- Green LED → safe device; Red LED → suspicious device
+- Buzzer beeps 3 times on suspicious USB detection
+- Live status on OLED display
+- Graceful OLED error handling (monitoring continues even if display fails)
+
 ---
-GPIO Wiring
-Component	Raspberry Pi GPIO	Physical Pin
-Green LED positive	GPIO 17	Pin 11
-Red LED positive	GPIO 27	Pin 13
-Buzzer signal	GPIO 22	Pin 15
-OLED SDA	GPIO 2	Pin 3
-OLED SCL	GPIO 3	Pin 5
-OLED VCC	3.3V	Pin 1
-OLED GND	GND	Pin 6
-Recommended LED wiring:
-```text
-GPIO pin -> 220Ω resistor -> LED positive leg
-LED negative leg -> GND
+
+## Hardware
+
+| Component | Qty |
+|---|---|
+| Raspberry Pi 4B | 1 |
+| MicroSD card (32 GB or 64 GB recommended) | 1 |
+| 1.3-inch I2C OLED display | 1 |
+| Red LED | 1 |
+| Green LED | 1 |
+| Active buzzer module | 1 |
+| 220 Ω resistors (for LEDs) | 2 |
+| Jumper wires | As needed |
+| Breadboard | 1 |
+
+> If using a bare buzzer instead of a module, add a transistor driver circuit to avoid drawing too much current from the GPIO pin.
+
+---
+
+## Wiring
+
+| Component | GPIO | Physical Pin |
+|---|---|---|
+| Green LED (+) | GPIO 17 | Pin 11 |
+| Red LED (+) | GPIO 27 | Pin 13 |
+| Buzzer signal | GPIO 22 | Pin 15 |
+| OLED SDA | GPIO 2 | Pin 3 |
+| OLED SCL | GPIO 3 | Pin 5 |
+| OLED VCC | 3.3 V | Pin 1 |
+| OLED GND | GND | Pin 6 |
+
+**LED wiring pattern:**
 ```
-For buzzer, an active buzzer module is recommended. If using a bare buzzer, use a transistor driver circuit instead of drawing too much current directly from the GPIO pin.
+GPIO pin → 220 Ω resistor → LED (+) leg → LED (−) leg → GND
+```
+
 ---
-Software Requirements
+
+## Software Setup
+
 Tested on Raspberry Pi OS with Python 3.
-Install required system packages:
+
+### 1. Install system packages
+
 ```bash
 sudo apt update
 sudo apt install -y python3-pip python3-pil i2c-tools python3-lgpio udisks2 util-linux
 ```
-Create and activate a virtual environment:
+
+### 2. Create a virtual environment
+
 ```bash
 python3 -m venv --system-site-packages .venv
 source .venv/bin/activate
 ```
-Install Python packages:
+
+### 3. Install Python packages
+
 ```bash
 pip install gpiozero pyudev luma.oled
 ```
-Enable I2C:
+
+### 4. Enable I2C
+
 ```bash
 sudo raspi-config
+# Interface Options → I2C → Enable
 ```
-Then go to:
-```text
-Interface Options -> I2C -> Enable
-```
-Check if OLED is detected:
+
+### 5. Verify OLED is detected
+
 ```bash
 i2cdetect -y 1
+# Most OLED displays appear at address 0x3c
 ```
-Most OLED displays show address:
-```text
-0x3c
-```
+
 ---
-Project Structure
-```text
+
+## Project Structure
+
+```
 usb-oled-monitor/
 ├── usb_guard_oled.py
 ├── README.md
 └── .venv/
 ```
+
 ---
-How It Works
-The script listens to Linux USB events using `pyudev`.
-When a USB device is inserted:
-The script reads device metadata such as vendor ID, product ID, manufacturer, and product name.
-It tries to classify the device as keyboard, mouse, storage, hub, camera, or another USB type.
-If the device is USB storage, it finds the mounted path.
-It scans files inside the USB drive.
-If a suspicious file extension is found, it switches to red alert mode.
----
-Detection Logic
-Suspicious file extensions include:
-```text
-.exe
-.bat
-.cmd
-.scr
-.pif
-.com
-.msi
-.vbs
-.vbe
-.js
-.jse
-.wsf
-.hta
-.ps1
-.dll
-.lnk
-.jar
+
+## How It Works
+
+The script listens for Linux USB events using `pyudev`. On each insert event:
+
+1. Reads device metadata — vendor ID, product ID, manufacturer, product name.
+2. Classifies the device type (keyboard, mouse, storage, hub, camera, etc.).
+3. If USB storage: finds the mount path and scans all files recursively.
+4. If a suspicious extension is found: triggers red alert mode (red LED ON, buzzer beeps 3 times, OLED updates).
+5. On removal: clears the device state using `sys_name` (since Linux remove events may lose vendor/product IDs).
+
+### Suspicious File Extensions
+
+These extensions are flagged because they can execute code or launch scripts, particularly on Windows:
+
 ```
-These files are treated as suspicious because they can execute code or launch scripts on Windows systems.
+.exe  .bat  .cmd  .scr  .pif  .com  .msi
+.vbs  .vbe  .js   .jse  .wsf  .hta
+.ps1  .dll  .lnk  .jar
+```
+
+### LED / Buzzer / OLED Behavior
+
+| Situation | Green LED | Red LED | Buzzer | OLED |
+|---|---|---|---|---|
+| No USB connected | OFF | OFF | — | `No USB Device` |
+| Keyboard or Mouse | ON | OFF | — | `Device Safe` |
+| USB storage — no suspicious files | ON | OFF | — | `Device Safe` |
+| USB storage — suspicious file found | OFF | ON | 3 beeps | `Suspicious USB` |
+| Suspicious USB removed | OFF | OFF | — | `No USB Device` |
+| OLED I2C error | (continues) | (continues) | (continues) | Error in terminal |
+
 ---
-LED and Buzzer Behavior
-Situation	Green LED	Red LED	Buzzer	OLED
-No USB connected	OFF	OFF	OFF	No USB Device
-Keyboard connected	ON	OFF	OFF	Device Safe
-Mouse connected	ON	OFF	OFF	Device Safe
-USB storage without risky files	ON	OFF	OFF	Device Safe
-USB storage with `.exe` / suspicious file	OFF	ON	3 beeps	Suspicious USB
-Suspicious USB removed	OFF if no device left	OFF	OFF	No USB Device
-OLED I2C error	LED logic continues	LED logic continues	Continues	Error printed in terminal
----
-Running the Project
-Activate the virtual environment:
+
+## Running the Project
+
+Activate the virtual environment, then run the script:
+
 ```bash
 source .venv/bin/activate
-```
-Run the script:
-```bash
 python3 usb_guard_oled.py
 ```
-If the USB drive is not scanned properly because of mount permission issues, run:
+
+If the USB drive isn't scanned due to mount permission issues, run with `sudo`:
+
 ```bash
 sudo /home/ksp/usb-oled-monitor/.venv/bin/python3 usb_guard_oled.py
 ```
+
+### OLED Driver Selection
+
+Most 1.3-inch OLED displays use the SH1106 controller. The default in the script:
+
+```python
+OLED_DRIVER = "sh1106"
+```
+
+If text appears glitched, switch to:
+
+```python
+OLED_DRIVER = "ssd1306"
+```
+
 ---
-Expected Terminal Output
-For a safe mouse:
-```text
+
+## Expected Output
+
+**Safe device (mouse):**
+```
 [USB INSERTED] MOSART Semi. Lenovo 130 Wireless Mouse | 17ef:60ff | sys=1-1.3
 [USB TYPE] Mouse
 [SAFE DEVICE] Mouse | MOSART Semi. Lenovo 130 Wireless Mouse
 ```
-For a USB drive containing an `.exe` file:
-```text
+
+**Suspicious USB storage:**
+```
 [USB INSERTED] HP USB Flash Drive | 03f0:1985 | sys=1-1.1
 [USB TYPE] USB Storage
 [MOUNT POINTS] ['/media/ksp/HP USB20FD']
@@ -167,102 +205,37 @@ For a USB drive containing an `.exe` file:
 [SUSPICIOUS FILE FOUND] /media/ksp/HP USB20FD/Mini Project/test.exe
 [RED ALERT] HP USB Flash Drive | Reason: test.exe
 ```
-For USB removal:
-```text
+
+**Device removal:**
+```
 [USB REMOVED] Unknown USB Device | ????:???? | sys=1-1.1
 ```
-The `????:????` value during removal is normal on Linux because the USB metadata may disappear before the remove event is processed. The script uses `sys_name` to clear the device state correctly.
+
+> `????:????` on removal is normal — Linux may lose vendor/product metadata before the remove event fires. The script uses `sys_name` to correctly clear device state.
+
 ---
-OLED Driver Selection
-Most 1.3-inch OLED displays use SH1106.
-In the Python file:
-```python
-OLED_DRIVER = "sh1106"
-```
-If your display looks glitched, change it to:
-```python
-OLED_DRIVER = "ssd1306"
-```
-Then run the script again.
----
-Troubleshooting
-1. OLED shows glitched text
-Try changing:
-```python
-OLED_DRIVER = "sh1106"
-```
-to:
-```python
-OLED_DRIVER = "ssd1306"
-```
-Also check wiring:
-```text
-OLED SDA -> GPIO 2
-OLED SCL -> GPIO 3
-OLED VCC -> 3.3V
-OLED GND -> GND
-```
----
-2. OLED gives `OSError: [Errno 5] Input/output error`
-This usually means I2C communication failed temporarily.
-Check:
-Loose jumper wires
-Wrong SDA/SCL pins
-Weak power connection
-Buzzer causing electrical noise
-OLED connected to 5V instead of 3.3V
-The latest code handles OLED errors safely, so the USB monitor should continue working even if one display update fails.
----
-3. `.exe` file is not detected
-Check whether the USB is mounted:
-```bash
-ls /media/ksp/
-```
-Also check block devices:
-```bash
-lsblk
-```
-Run the script with sudo if required:
-```bash
-sudo /home/ksp/usb-oled-monitor/.venv/bin/python3 usb_guard_oled.py
-```
----
-4. GPIOZero warning appears
-If you see a warning about GPIOZero falling back to NativeFactory, install the GPIO backend:
-```bash
-sudo apt install -y python3-lgpio
-```
-If you are using a virtual environment, recreate it with system packages:
-```bash
-deactivate
-rm -rf .venv
-python3 -m venv --system-site-packages .venv
-source .venv/bin/activate
-pip install gpiozero pyudev luma.oled
-```
----
-5. Red LED stays ON after USB removal
-The fixed code uses the USB `sys_name` to clear stale threat records because Linux remove events can lose vendor/product IDs.
-If red still stays ON:
-Stop the script with `Ctrl + C`
-Disconnect all USB devices
-Run the script again
-Insert devices one by one
----
-Auto Start on Boot
-Open crontab:
+
+## Auto-Start on Boot
+
+### Option A — Crontab (simple)
+
 ```bash
 crontab -e
 ```
-Add this line:
-```bash
+
+Add:
+```
 @reboot /home/ksp/usb-oled-monitor/.venv/bin/python3 /home/ksp/usb-oled-monitor/usb_guard_oled.py
 ```
-For better reliability, a `systemd` service is recommended.
-Example service file:
+
+### Option B — systemd service (recommended)
+
+Create the service file:
+
 ```bash
 sudo nano /etc/systemd/system/usb-guard-oled.service
 ```
+
 Paste:
 ```ini
 [Unit]
@@ -280,49 +253,103 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 ```
-Enable service:
+
+Enable and start:
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable usb-guard-oled.service
 sudo systemctl start usb-guard-oled.service
-```
-Check status:
-```bash
 sudo systemctl status usb-guard-oled.service
 ```
+
 ---
-Security Limitations
-This project does not perform deep malware analysis.
-It currently checks for suspicious file extensions only. A real antivirus would need:
-File hashing
-Signature database
-YARA rules
-Sandboxing
-Behavioral analysis
-VirusTotal or local malware database integration
-File metadata and entropy checks
-For a college mini-project, this is a strong hardware + software security demo because it combines:
-USB event monitoring
-Device classification
-File scanning
-Hardware alert system
-OLED status output
+
+## Troubleshooting
+
+### OLED shows glitched text
+
+Change the driver in the script:
+```python
+OLED_DRIVER = "ssd1306"   # or "sh1106"
+```
+Also verify wiring: SDA → GPIO 2, SCL → GPIO 3, VCC → 3.3 V (not 5 V), GND → GND.
+
 ---
-Future Improvements
-Possible upgrades:
-Add YARA rule scanning
-Add SHA256 hash checking
-Store scan logs in a database
-Add web dashboard
-Add Telegram/email alert
-Add physical reset button
-Add whitelist for trusted USB devices
-Add quarantine mode
-Add camera/OCR display for project demo
-Add AI explanation of detected risk
+
+### `OSError: [Errno 5] Input/output error` on OLED
+
+I2C communication failed temporarily. Common causes:
+- Loose jumper wires
+- Wrong SDA/SCL pins
+- OLED connected to 5 V instead of 3.3 V
+- Buzzer causing electrical noise on the power rail
+
+The script handles these errors gracefully — USB monitoring continues even if the display fails.
+
 ---
-Disclaimer
-This project is for educational and demonstration purposes. It should not be used as a replacement for professional endpoint security or antivirus software.
+
+### `.exe` file is not detected
+
+Check whether the USB drive is mounted:
+```bash
+ls /media/ksp/
+lsblk
+```
+
+If it isn't mounted automatically, run the script with `sudo` (see [Running the Project](#running-the-project)).
+
 ---
-Author
-Made by Priyanshu Chawda as a Raspberry Pi USB security monitoring project.
+
+### GPIOZero warning about NativeFactory
+
+Install the GPIO backend:
+```bash
+sudo apt install -y python3-lgpio
+```
+
+If using a virtual environment, recreate it:
+```bash
+deactivate
+rm -rf .venv
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+pip install gpiozero pyudev luma.oled
+```
+
+---
+
+### Red LED stays ON after USB removal
+
+The script uses `sys_name` to clear threat records. If the red LED still stays on:
+
+1. Press `Ctrl + C` to stop the script.
+2. Disconnect all USB devices.
+3. Restart the script and reinsert devices one at a time.
+
+---
+
+## Security Limitations & Future Improvements
+
+This project checks suspicious file extensions only. A production-grade endpoint security tool would also need:
+
+- File hashing and signature database matching
+- YARA rule scanning
+- Sandboxed execution and behavioral analysis
+- VirusTotal or local malware database integration
+- File metadata and entropy analysis
+
+### Planned Improvements
+
+- YARA rule integration
+- SHA-256 hash checking against known malware databases
+- Scan log storage (SQLite or flat file)
+- Web dashboard for remote monitoring
+- Telegram / email alert on detection
+- Physical reset button
+- USB device whitelist
+- Quarantine mode
+- AI-powered risk explanation on OLED
+
+---
+
+*Made by Priyanshu Chawda — Raspberry Pi USB security monitoring project.*
