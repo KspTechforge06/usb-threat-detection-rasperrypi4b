@@ -4,7 +4,6 @@ A Raspberry Pi 4B–based USB security monitor that detects newly connected USB 
 
 > **Disclaimer:** This is an educational demo project, not a replacement for professional antivirus or endpoint security software.
 
-![USB Threat Detection Hardware] (hardware.jpeg)
 
 ---
 
@@ -36,6 +35,8 @@ A Raspberry Pi 4B–based USB security monitor that detects newly connected USB 
 
 ---
 
+![USB Threat](hardware.jpeg)
+  
 ## Hardware
 
 | Component | Qty |
